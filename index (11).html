@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出遊分帳</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:        #F7F6F2;
+    --surface:   #FFFFFF;
+    --border:    rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text:      #1A1A18;
+    --muted:     #6B6B65;
+    --hint:      #A8A89E;
+    --accent:    #2D6A4F;
+    --accent-lt: #D8EDDF;
+    --accent-dk: #1B4332;
+    --danger:    #993C1D;
+    --danger-lt: #FAECE7;
+    --warn:      #854F0B;
+    --warn-lt:   #FAEEDA;
+    --radius:    10px;
+    --radius-lg: 14px;
+    --shadow:    0 1px 4px rgba(0,0,0,0.07);
+  }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.55; min-height: 100vh; }
+  .app-shell { max-width: 520px; margin: 0 auto; padding: 0 0 80px; }
+  .app-header { position: sticky; top: 0; z-index: 100; background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .app-header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+  .header-trip { font-size: 13px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px 12px; background: none; border: none; cursor: pointer; color: var(--hint); font-size: 10px; letter-spacing: 0.2px; transition: color .15s; }
+  .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nav-btn.active { color: var(--accent); }
+  .screen { display: none; padding: 20px; }
+  .screen.active { display: block; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .form-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .form-row:last-child { margin-bottom: 0; }
+  label.lbl { font-size: 13px; color: var(--muted); min-width: 52px; flex-shrink: 0; }
+  input[type=text], input[type=number], input[type=date], select, textarea { flex: 1; font-size: 14px; font-family: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border-md); border-radius: var(--radius); padding: 8px 11px; outline: none; transition: border-color .15s; min-width: 0; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6B65' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 11px center; padding-right: 28px; }
+  .btn { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 500; font-family: inherit; padding: 9px 16px; border-radius: var(--radius); cursor: pointer; border: 1px solid transparent; transition: opacity .15s, transform .1s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent-dk); }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-outline { background: var(--surface); color: var(--text); border-color: var(--border-md); }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-danger { background: var(--danger-lt); color: var(--danger); border-color: rgba(153,60,29,0.2); }
+  .btn-sm { font-size: 12px; padding: 5px 11px; }
+  .btn-full { width: 100%; justify-content: center; }
+  .btn-share { background: var(--accent-lt); color: var(--accent-dk); border-color: rgba(45,106,79,0.25); }
+  .tag-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-lt); color: var(--accent-dk); font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 20px; }
+  .tag button { background: none; border: none; cursor: pointer; color: var(--accent-dk); font-size: 15px; line-height: 1; padding: 0 0 0 2px; }
+  .member-btn { padding: 5px 13px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border-md); background: var(--surface); color: var(--muted); transition: all .12s; }
+  .member-btn.on { background: var(--accent); color: #fff; border-color: var(--accent-dk); }
+  .chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+  .chip-pending { background: var(--warn-lt); color: var(--warn); }
+  .chip-sent    { background: var(--accent-lt); color: var(--accent-dk); }
+  .chip-done    { background: #EAF3DE; color: #3B6D11; }
+  .list-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .list-row:last-child { border-bottom: none; }
+  .row-label { font-size: 14px; }
+  .amount { font-size: 15px; font-weight: 600; }
+  .pos { color: var(--accent); }
+  .neg { color: var(--danger); }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+  .empty { text-align: center; padding: 36px 16px; color: var(--hint); font-size: 14px; }
+  .empty-icon { font-size: 32px; margin-bottom: 8px; }
+  .trip-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; cursor: pointer; transition: border-color .15s; box-shadow: var(--shadow); }
+  .trip-item:hover { border-color: var(--accent); }
+  .trip-item.active-trip { border-color: var(--accent); background: var(--accent-lt); }
+  .trip-name { font-weight: 600; font-size: 15px; }
+  .trip-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #loading { position: fixed; inset: 0; background: rgba(247,246,242,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; gap: 12px; font-size: 14px; color: var(--muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border-md); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(8px); background: var(--text); color: #fff; font-size: 13px; padding: 9px 18px; border-radius: 20px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; white-space: nowrap; z-index: 999; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .metric-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .metric { flex: 1; background: var(--bg); border-radius: var(--radius); padding: 12px 14px; }
+  .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+  .metric-value { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .notify-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--border); gap: 10px; }
+  .notify-row:last-child { border-bottom: none; }
+  .notify-names { font-size: 14px; font-weight: 500; }
+  .notify-names span { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .notify-amount { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  #share-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: flex-end; justify-content: center; z-index: 500; }
+  #share-modal.open { display: flex; }
+  .share-sheet { background: var(--surface); border-radius: 20px 20px 0 0; padding: 24px 24px 36px; width: 100%; max-width: 520px; animation: slideup .25s ease; }
+  @keyframes slideup { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .share-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .share-desc  { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .share-url { background: var(--bg); border: 1px solid var(--border-md); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; color: var(--text); word-break: break-all; margin-bottom: 14px; font-family: monospace; }
+  .share-actions { display: flex; gap: 8px; }
+  .setup-banner { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%); color: #fff; border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; }
+  .setup-banner h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .setup-banner p  { font-size: 13px; opacity: 0.82; }
+  @media (max-width: 420px) { .btn { font-size: 13px; padding: 8px 13px; } .share-url { font-size: 12px; } }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><span>載入中…</span></div>
+<div id="toast"></div>
+
+<div id="share-modal" onclick="closeShareModal(event)">
+  <div class="share-sheet">
+    <div class="share-title">分享這次出遊</div>
+    <div class="share-desc">把連結傳給朋友，大家都可以一起記帳、看結算。</div>
+    <div class="share-url" id="share-url-text">—</div>
+    <div class="share-actions">
+      <button class="btn btn-primary" onclick="copyShareUrl()">複製連結</button>
+      <button class="btn btn-outline" onclick="closeShareModal()">關閉</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <h1>出遊分帳</h1>
+    <div class="header-trip" id="header-trip-name">選擇出遊</div>
+  </header>
+
+  <div class="screen active" id="screen-trips">
+    <div class="setup-banner">
+      <h2>每次出去都清楚算</h2>
+      <p>建立出遊 → 分享連結給朋友 → 一起記帳 → 自動算清楚</p>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-size:13px;color:var(--muted);">你的出遊</div>
+      <button class="btn btn-primary btn-sm" onclick="showNewTrip()">＋ 新增</button>
+    </div>
+    <div id="trips-list"></div>
+    <div class="card" id="new-trip-form" style="display:none;">
+      <div class="card-title">新增出遊</div>
+      <div class="form-row">
+        <label class="lbl">名稱</label>
+        <input type="text" id="inp-trip-name" placeholder="例：花蓮三日遊">
+      </div>
+      <div class="form-row">
+        <label class="lbl">日期</label>
+        <input type="date" id="inp-trip-date">
+      </div>
+      <hr class="divider">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">成員</div>
+      <div class="tag-wrap" id="new-trip-members"></div>
+      <div class="form-row">
+        <input type="text" id="inp-member" placeholder="輸入名字後按 Enter">
+        <button class="btn btn-outline btn-sm" onclick="addMemberToForm()">＋</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-primary" style="flex:1" onclick="createTrip()">建立出遊</button>
+        <button class="btn btn-outline" onclick="hideNewTrip()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-expenses">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--muted);" id="exp-trip-label">—</div>
+      <button class="btn btn-share btn-sm" onclick="openShareModal()">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        分享連結
+      </button>
+    </div>
+    <div class="card">
+      <div class="card-title">登記費用</div>
+      <div class="form-row">
+        <label class="lbl">項目</label>
+        <input type="text" id="inp-desc" placeholder="例：午餐、門票">
+      </div>
+      <div class="form-row">
+        <label class="lbl">金額</label>
+        <input type="number" id="inp-amount" placeholder="NT$">
+      </div>
+      <div class="form-row">
+        <label class="lbl">付款人</label>
+        <select id="inp-payer"><option value="">選擇</option></select>
+      </div>
+      <hr class="divider">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">誰要分攤？</div>
+      <div class="tag-wrap" id="split-btns"></div>
+      <div style="display:flex;gap:6px;margin:8px 0 12px;">
+        <button class="btn btn-outline btn-sm" onclick="allSplit()">全選</button>
+        <button class="btn btn-outline btn-sm" onclick="clearSplit()">清除</button>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="addExpense()">登記</button>
+    </div>
+    <div id="exp-list"></div>
+  </div>
+
+  <div class="screen" id="screen-settle">
+    <div id="settle-content"></div>
+  </div>
+
+  <div class="screen" id="screen-notify">
+    <div id="notify-content"></div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="goTo('trips')" id="nav-trips">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    出遊
+  </button>
+  <button class="nav-btn" onclick="goTo('expenses')" id="nav-expenses">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+    記帳
+  </button>
+  <button class="nav-btn" onclick="goTo('settle')" id="nav-settle">
+    <svg viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+    結算
+  </button>
+  <button class="nav-btn" onclick="goTo('notify')" id="nav-notify">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+    通知
+  </button>
+</nav>
+
+<script>
+const firebaseConfig = {
+  apiKey:            "AIzaSyDRb81K2Qz-4e3iTbWeufx1Opm7KSrlHwU",
+  authDomain:        "trip-split-f64a1.firebaseapp.com",
+  databaseURL:       "https://trip-split-f64a1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "trip-split-f64a1",
+  storageBucket:     "trip-split-f64a1.firebasestorage.app",
+  messagingSenderId: "466427588006",
+  appId:             "1:466427588006:web:b0df58d11271f35dd77367"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let currentTripId = null;
+let currentTrip   = null;
+let tripMembers   = [];
+let tripListeners = {};
+
+const urlParams    = new URLSearchParams(location.search);
+const sharedTripId = urlParams.get('trip');
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (sharedTripId) {
+    await loadTrip(sharedTripId);
+    goTo('expenses');
+  } else {
+    loadTripList();
+  }
+  hideLoading();
+});
+
+function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+function showLoading()  { document.getElementById('loading').style.display = 'flex'; }
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+function goTo(name) {
+  if (['expenses','settle','notify'].includes(name) && !currentTripId) {
+    toast('請先選擇或建立一個出遊'); return;
+  }
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'expenses') renderExpenses();
+  if (name === 'settle')   renderSettle();
+  if (name === 'notify')   renderNotify();
+}
+
+function loadTripList() {
+  db.ref('trips').on('value', snap => {
+    const data  = snap.val() || {};
+    const trips = Object.entries(data).map(([id, t]) => ({ id, ...t }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    renderTripList(trips);
+  });
+}
+
+function renderTripList(trips) {
+  const el = document.getElementById('trips-list');
+  if (!trips.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🗺️</div>還沒有出遊，點右上角新增！</div>';
+    return;
+  }
+  el.innerHTML = trips.map(t => `
+    <div class="trip-item ${currentTripId === t.id ? 'active-trip' : ''}" onclick="selectTrip('${t.id}')">
+      <div>
+        <div class="trip-name">${t.name}</div>
+        <div class="trip-meta">${t.date || ''} · ${(t.members || []).join('、')}</div>
+      </div>
+      <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--hint);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  `).join('');
+}
+
+async function selectTrip(id) {
+  showLoading();
+  await loadTrip(id);
+  hideLoading();
+  goTo('expenses');
+}
+
+async function loadTrip(id) {
+  return new Promise(resolve => {
+    db.ref('trips/' + id).once('value', snap => {
+      const trip = snap.val();
+      if (!trip) { toast('找不到這個出遊'); resolve(); return; }
+      currentTripId = id;
+      currentTrip   = { id, ...trip };
+      document.getElementById('header-trip-name').textContent = trip.name;
+      resolve();
+    });
+  });
+}
+
+function showNewTrip() {
+  tripMembers = [];
+  document.getElementById('inp-trip-name').value = '';
+  document.getElementById('inp-trip-date').value = '';
+  renderNewTripMembers();
+  document.getElementById('new-trip-form').style.display = 'block';
+  document.getElementById('inp-trip-name').focus();
+}
+function hideNewTrip() { document.getElementById('new-trip-form').style.display = 'none'; }
+
+document.getElementById('inp-member').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addMemberToForm(); }
+});
+
+function addMemberToForm() {
+  const inp  = document.getElementById('inp-member');
+  const name = inp.value.trim();
+  if (!name || tripMembers.includes(name)) { inp.value = ''; return; }
+  tripMembers.push(name);
+  inp.value = '';
+  renderNewTripMembers();
+}
+
+function renderNewTripMembers() {
+  const el = document.getElementById('new-trip-members');
+  el.innerHTML = tripMembers.length
+    ? tripMembers.map(m => `<span class="tag">${m}<button onclick="removeTripMember('${m}')">×</button></span>`).join('')
+    : '<span style="font-size:13px;color:var(--hint)">還沒有成員</span>';
+}
+
+function removeTripMember(name) {
+  tripMembers = tripMembers.filter(m => m !== name);
+  renderNewTripMembers();
+}
+
+function createTrip() {
+  const name = document.getElementById('inp-trip-name').value.trim();
+  const date = document.getElementById('inp-trip-date').value;
+  if (!name)               { toast('請填寫出遊名稱'); return; }
+  if (!tripMembers.length) { toast('請至少加入一位成員'); return; }
+  db.ref('trips').push({ name, date, members: tripMembers, createdAt: Date.now() }, err => {
+    if (err) { toast('建立失敗，請再試'); return; }
+    toast(`「${name}」建立完成！`);
+    hideNewTrip();
+  });
+}
+
+function renderExpenses() {
+  if (!currentTrip) return;
+  const members = currentTrip.members || [];
+  document.getElementById('exp-trip-label').textContent = currentTrip.name;
+  const payer = document.getElementById('inp-payer');
+  payer.innerHTML = '<option value="">選擇</option>' + members.map(m => `<option>${m}</option>`).join('');
+  const split = document.getElementById('split-btns');
+  split.innerHTML = members.map(m => `<button class="member-btn on" data-name="${m}" onclick="toggleSplit(this)">${m}</button>`).join('');
+  if (tripListeners.expenses) db.ref(`expenses/${currentTripId}`).off('value', tripListeners.expenses);
+  tripListeners.expenses = db.ref(`expenses/${currentTripId}`).on('value', snap => {
+    const data = snap.val() || {};
+    const list = Object.entries(data).map(([id, e]) => ({ id, ...e }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const el = document.getElementById('exp-list');
+    if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🧾</div>還沒有費用記錄</div>'; return; }
+    el.innerHTML = list.map(e => `
+      <div class="card" style="padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:15px;">${e.desc}</span>
+          <span class="amount">NT$ ${Number(e.amount).toLocaleString()}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${e.payer} 付款 · 分攤：${(e.splitters || []).join('、')}</div>
+        <button class="btn btn-danger btn-sm" style="margin-top:8px;" onclick="deleteExpense('${e.id}')">刪除</button>
+      </div>
+    `).join('');
+  });
+}
+
+function toggleSplit(btn) { btn.classList.toggle('on'); }
+function allSplit()   { document.querySelectorAll('#split-btns .member-btn').forEach(b => b.classList.add('on')); }
+function clearSplit() { document.querySelectorAll('#split-btns .member-btn').forEach(b => b.classList.remove('on')); }
+
+function addExpense() {
+  const desc      = document.getElementById('inp-desc').value.trim();
+  const amount    = parseFloat(document.getElementById('inp-amount').value);
+  const payer     = document.getElementById('inp-payer').value;
+  const splitters = Array.from(document.querySelectorAll('#split-btns .member-btn.on')).map(b => b.dataset.name);
+  if (!desc || !amount || !payer || !splitters.length) { toast('請填寫所有欄位並選擇分攤人'); return; }
+  db.ref(`expenses/${currentTripId}`).push({ desc, amount, payer, splitters, createdAt: Date.now() }, err => {
+    if (err) { toast('新增失敗'); return; }
+    document.getElementById('inp-desc').value   = '';
+    document.getElementById('inp-amount').value = '';
+    toast('已登記！');
+  });
+}
+
+function deleteExpense(id) {
+  if (!confirm('確定刪除這筆費用？')) return;
+  db.ref(`expenses/${currentTripId}/${id}`).remove();
+}
+
+function renderSettle() {
+  if (!currentTrip) return;
+  const el = document.getElementById('settle-content');
+  el.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 8px;"></div>計算中…</div>';
+  db.ref(`expenses/${currentTripId}`).once('value', snap => {
+    const exps = Object.values(snap.val() || {});
+    if (!exps.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div>還沒有費用記錄</div>'; return; }
+    const total   = exps.reduce((s, e) => s + Number(e.amount), 0);
+    const members = currentTrip.members || [];
+    const bal = {};
+    members.forEach(m => bal[m] = 0);
+    exps.forEach(e => {
+      const share = Number(e.amount) / (e.splitters || []).length;
+      (e.splitters || []).forEach(m => { bal[m] = (bal[m] || 0) - share; });
+      bal[e.payer] = (bal[e.payer] || 0) + Number(e.amount);
+    });
+    const txns = minimiseDebts(bal);
+    el.innerHTML = `
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label">總支出</div><div class="metric-value">NT$ ${Math.round(total).toLocaleString()}</div></div>
+        <div class="metric"><div class="metric-label">筆數</div><div class="metric-value">${exps.length}</div></div>
+        <div class="metric"><div class="metric-label">人數</div><div class="metric-value">${members.length}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">各人餘額</div>
+        ${members.map(m => {
+          const b = Math.round(bal[m] || 0);
+          return `<div class="list-row"><span class="row-label">${m}</span><span class="amount ${b >= 0 ? 'pos' : 'neg'}">${b >= 0 ? '+' : ''}NT$ ${b.toLocaleString()}</span></div>`;
+        }).join('')}
+      </div>
+      <div class="card">
+        <div class="card-title">最少轉帳方案</div>
+        ${txns.length
+          ? txns.map(t => `<div class="list-row"><div class="row-label">${t.from} → ${t.to}</div><span class="amount neg">NT$ ${t.amount.toLocaleString()}</span></div>`).join('')
+          : '<div style="text-align:center;padding:12px;color:var(--muted);font-size:14px;">🎉 大家都平帳了！</div>'}
+      </div>`;
+  });
+}
+
+function minimiseDebts(balances) {
+  const d = [], c = [];
+  Object.entries(balances).forEach(([name, amt]) => {
+    if (amt < -0.01) d.push({ name, amt: -amt });
+    if (amt >  0.01) c.push({ name, amt });
+  });
+  d.sort((a, b) => b.amt - a.amt);
+  c.sort((a, b) => b.amt - a.amt);
+  const txns = [];
+  let i = 0, j = 0;
+  while (i < d.length && j < c.length) {
+    const pay = Math.min(d[i].amt, c[j].amt);
+    txns.push({ from: d[i].name, to: c[j].name, amount: Math.round(pay) });
+    d[i].amt -= pay; c[j].amt -= pay;
+    if (d[i].amt < 0.01) i++;
+    if (c[j].amt < 0.01) j++;
+  }
+  return txns;
+}
+
+function renderNotify() {
+  if (!currentTrip) return;
+  const el = document.getElementById('notify-content');
+  el.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 8px;"></div>載入中…</div>';
+  db.ref(`expenses/${currentTripId}`).once('value', snap => {
+    const exps = Object.values(snap.val() || {});
+    if (!exps.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🔔</div>還沒有費用記錄</div>'; return; }
+    const bal = {};
+    (currentTrip.members || []).forEach(m => bal[m] = 0);
+    exps.forEach(e => {
+      const share = Number(e.amount) / (e.splitters || []).length;
+      (e.splitters || []).forEach(m => bal[m] -= share);
+      bal[e.payer] = (bal[e.payer] || 0) + Number(e.amount);
+    });
+    const txns = minimiseDebts(bal);
+    if (!txns.length) { el.innerHTML = '<div class="card"><div style="text-align:center;padding:12px;color:var(--muted);">🎉 大家都平帳了！</div></div>'; return; }
+    db.ref(`settlements/${currentTripId}`).once('value', sSnap => {
+      const stored = sSnap.val() || {};
+      el.innerHTML = `<div class="card">` + txns.map(t => {
+        const key    = `${t.from}__${t.to}`;
+        const status = stored[key] || 'pending';
+        return `
+          <div class="notify-row">
+            <div>
+              <div class="notify-names">${t.from} <span>→</span> ${t.to}</div>
+              <div class="notify-amount">NT$ ${t.amount.toLocaleString()}</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+              ${status === 'pending' ? `<button class="btn btn-outline btn-sm" onclick="markSettlement('${t.from}','${t.to}','sent')">通知匯款</button>` : ''}
+              ${status === 'sent'    ? `<span class="chip chip-sent">已通知</span><button class="btn btn-outline btn-sm" onclick="markSettlement('${t.from}','${t.to}','done')">確認收款</button>` : ''}
+              ${status === 'done'    ? `<span class="chip chip-done">✓ 完成</span>` : ''}
+            </div>
+          </div>`;
+      }).join('') + `</div>`;
+    });
+  });
+}
+
+function markSettlement(from, to, status) {
+  const key = `${from}__${to}`;
+  db.ref(`settlements/${currentTripId}/${key}`).set(status, err => {
+    if (!err) { toast(status === 'sent' ? '已通知匯款' : '已確認收款'); renderNotify(); }
+  });
+}
+
+function openShareModal() {
+  if (!currentTripId) { toast('請先選擇出遊'); return; }
+  const url = `${location.origin}${location.pathname}?trip=${currentTripId}`;
+  document.getElementById('share-url-text').textContent = url;
+  document.getElementById('share-modal').classList.add('open');
+}
+function closeShareModal(e) {
+  if (!e || e.target === document.getElementById('share-modal'))
+    document.getElementById('share-modal').classList.remove('open');
+}
+function copyShareUrl() {
+  const url = document.getElementById('share-url-text').textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    toast('連結已複製！');
+    document.getElementById('share-modal').classList.remove('open');
+  }).catch(() => { toast('請手動複製連結'); });
+}
+</script>
+</body>
+</html>
